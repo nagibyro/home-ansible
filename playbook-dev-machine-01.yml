@@ -1,0 +1,88 @@
+---
+- hosts: all
+  become: yes
+  tasks:
+    - name: Install Dev Packages
+      ansible.builtin.dnf:
+        name:
+          - git
+          - powerline-fonts
+          - fd-find
+          - ripgrep
+          - nodejs
+          - neovim
+        update_cache: yes
+        state: latest
+
+    - name: Install Qemu Guest Package
+      ansible.builtin.dnf:
+        name:
+          - qemu-guest-agent
+        update_cache: yes
+        state: latest
+      when: ansible_system_vendor == 'QEMU'
+      notify:
+        - enable Qemu Agent
+        - restart Qemu Agent
+
+    - name: Clone pyenv
+      become_user: bnagi #will need to figure out how to generalize this one day
+      ansible.builtin.git:
+        repo: 'git@github.com:pyenv/pyenv.git'
+        dest: '~/opt/pyenv'
+        version: v2.3.12
+        depth: 1
+        key_file: '~/.ssh/id_rsa'
+
+    - name: Compile pyenv bash extension
+      become_user: bnagi
+      ansible.builtin.shell:
+        cmd: |
+          src/configure && make -C src
+        chdir: ~/opt/pyenv
+
+    - name: Add pyenv to path
+      become_user: bnagi
+      ansible.builtin.copy:
+        src: ./files/add-pyenv-path
+        dest: ~/.bashrc.d/
+
+    # - name: Install Dotfiles
+    #   ansible.builtin.git:
+    #     repo: git@github.com:nagibyro/dotfiles.git
+    #     dest: "{{ ansible_env.HOME }}/dotfiles"
+    #     ssh_opts: "-o StrictHostKeyChecking=no"
+    #   environment:
+    #     GIT_TERMINAL_PROMPT: 0
+    #
+    - name: Import 1Password yum public key
+      ansible.builtin.rpm_key:
+        state: present
+        key: https://downloads.1password.com/linux/keys/1password.asc
+
+    - name: Add 1Password yum repo
+      ansible.builtin.yum_repository:
+        name: 1password
+        description: 1password Stable Channel
+        baseurl: https://downloads.1password.com/linux/rpm/stable/$basearch
+        enabled: true
+        gpgcheck: true
+        gpgkey: https://downloads.1password.com/linux/keys/1password.asc
+
+    - name: Install 1Password cli
+      ansible.builtin.dnf:
+        name:
+          - 1password-cli
+        update_cache: yes
+        state: latest
+
+  handlers:
+    - name: restart Qemu Agent
+      ansible.builtin.service:
+        name: qemu-guest-agent
+        state: restarted
+
+    - name: enable Qemu Agent
+      ansible.builtin.service:
+        name: qemu-guest-agent
+        enabled: true
