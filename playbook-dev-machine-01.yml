@@ -60,7 +60,7 @@
         state: present
         key: https://downloads.1password.com/linux/keys/1password.asc
 
-    - name: Add 1Password yum repo
+    - name: Add 1Password repo
       ansible.builtin.yum_repository:
         name: 1password
         description: 1password Stable Channel
@@ -76,6 +76,42 @@
         update_cache: yes
         state: latest
 
+    - name: Add Docker repo
+      ansible.builtin.yum_repository:
+        name: docker-ce-stable
+        description: Docker CE Stable - $basearch
+        baseurl: https://download.docker.com/linux/fedora/$releasever/$basearch/stable
+        enabled: true
+        gpgcheck: true
+        gpgkey: https://download.docker.com/linux/fedora/gpg
+
+    - name: Install Docker
+      ansible.builtin.dnf:
+        name:
+          - docker-ce
+          - docker-ce-cli
+          - containerd.io
+          - docker-buildx-plugin
+          - docker-compose-plugin
+        update_cache: yes
+        state: latest
+      notify:
+        - enable Docker
+        - restart Docker
+
+    - name: Add docker daemon config
+      ansible.builtin.copy:
+        src: ./files/docker-daemon-config.json
+        dest: /etc/docker/daemon.json
+      notify:
+        - restart Docker
+
+    - name: Add bnagi user to docker group
+      ansible.builtin.user:
+        name: bnagi
+        groups: docker
+        append: yes
+
   handlers:
     - name: restart Qemu Agent
       ansible.builtin.service:
@@ -85,4 +121,14 @@
     - name: enable Qemu Agent
       ansible.builtin.service:
         name: qemu-guest-agent
+        enabled: true
+
+    - name: restart Docker
+      ansible.builtin.service:
+        name: docker
+        state: restarted
+
+    - name: enable Docker
+      ansible.builtin.service:
+        name: docker
         enabled: true
