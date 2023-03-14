@@ -1,6 +1,3 @@
 {
-  "log-driver": "journald",
-  "storage-opts": [
-    "overlay2.size=60G"
-  ]
+  "log-driver": "journald"
 }

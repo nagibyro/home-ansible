@@ -2,9 +2,19 @@
 - hosts: all
   become: yes
   tasks:
+    - name: Clone dotfiles
+      become_user: bnagi #will need to figure out how to generalize this one day
+      ansible.builtin.git:
+        repo: 'git@github.com:nagibyro/dotfiles.git'
+        dest: '~/dotfiles'
+        key_file: '~/.ssh/id_ed25519'
+
     - name: Install Dev Packages
       ansible.builtin.dnf:
         name:
+          - '@Development tools'
+          - '@Development Libraries'
+          - gcc-c++
           - git
           - powerline-fonts
           - fd-find
@@ -13,6 +23,36 @@
           - neovim
         update_cache: yes
         state: latest
+
+    - name: Install Auto Updates
+      ansible.builtin.dnf:
+        name:
+          - dnf-automatic
+          - yum-utils
+        state: latest
+
+    - name: Add Auto updates config
+      ansible.builtin.copy:
+        src: ./files/dnf-automatic.conf
+        dest: /etc/dnf/automatic.conf
+      notify:
+        - enable dnf automatic
+        - restart dnf automatic
+
+    - name: Enable starship copr repo
+      community.general.copr:
+        name: atim/starship
+        state: enabled
+
+    - name: Install Starship Cli
+      ansible.builtin.dnf:
+        name: starship
+
+    - name: Setup Bash to use Starship cli
+      become_user: bnagi
+      ansible.builtin.copy:
+        src: ./files/add-starship
+        dest: ~/.bashrc.d/
 
     - name: Install Qemu Guest Package
       ansible.builtin.dnf:
@@ -32,7 +72,7 @@
         dest: '~/opt/pyenv'
         version: v2.3.12
         depth: 1
-        key_file: '~/.ssh/id_rsa'
+        key_file: '~/.ssh/id_ed25519'
 
     - name: Compile pyenv bash extension
       become_user: bnagi
@@ -112,6 +152,30 @@
         groups: docker
         append: yes
 
+    - name: Check if cargo is installed
+      become_user: bnagi
+      shell: command -v cargo
+      register: cargo_exists
+      ignore_errors: yes
+
+    - name: Download Installer
+      become_user: bnagi
+      when: cargo_exists is failed
+      get_url:
+        url: https://sh.rustup.rs
+        dest: /tmp/sh.rustup.rs
+        mode: '0755'
+        force: yes
+      tags:
+        - rust
+
+    - name: install rust/cargo
+      become_user: bnagi
+      when: cargo_exists is failed
+      shell: /tmp/sh.rustup.rs -y
+      tags:
+        - rust
+
   handlers:
     - name: restart Qemu Agent
       ansible.builtin.service:
@@ -132,3 +196,13 @@
       ansible.builtin.service:
         name: docker
         enabled: true
+          
+    - name: enable dnf automatic
+      ansible.builtin.service:
+        name: dnf-automatic-install.timer
+        enabled: true
+
+    - name: restart dnf automatic
+      ansible.builtin.service:
+        name: dnf-automatic-install.timer
+        state: restarted
