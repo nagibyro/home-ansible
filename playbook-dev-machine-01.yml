@@ -1,5 +1,5 @@
 ---
-- hosts: all
+- hosts: devmachine 
   become: yes
   tasks:
     - name: Clone dotfiles
@@ -21,6 +21,7 @@
           - ripgrep
           - nodejs
           - neovim
+          - libpq-devel
         update_cache: yes
         state: latest
 
@@ -33,7 +34,7 @@
 
     - name: Add Auto updates config
       ansible.builtin.copy:
-        src: ./files/dnf-automatic.conf
+        src: ./files/dev-machine/dnf-automatic.conf
         dest: /etc/dnf/automatic.conf
       notify:
         - enable dnf automatic
@@ -51,7 +52,7 @@
     - name: Setup Bash to use Starship cli
       become_user: bnagi
       ansible.builtin.copy:
-        src: ./files/add-starship
+        src: ./files/dev-machine/add-starship
         dest: ~/.bashrc.d/
 
     - name: Install Qemu Guest Package
@@ -84,7 +85,7 @@
     - name: Add pyenv to path
       become_user: bnagi
       ansible.builtin.copy:
-        src: ./files/add-pyenv-path
+        src: ./files/dev-machine/add-pyenv-path
         dest: ~/.bashrc.d/
 
     # - name: Install Dotfiles
@@ -133,6 +134,7 @@
           - containerd.io
           - docker-buildx-plugin
           - docker-compose-plugin
+          - docker-compose
         update_cache: yes
         state: latest
       notify:
@@ -141,7 +143,7 @@
 
     - name: Add docker daemon config
       ansible.builtin.copy:
-        src: ./files/docker-daemon-config.json
+        src: ./files/dev-machine/docker-daemon-config.json
         dest: /etc/docker/daemon.json
       notify:
         - restart Docker
@@ -176,6 +178,23 @@
       tags:
         - rust
 
+    - name: enable tailscale repo
+      become: true
+      command:
+        cmd: dnf config-manager --add-repo https://pkgs.tailscale.com/stable/fedora/tailscale.repo
+      args:
+        creates: /etc/yum.repos.d/tailscale.repo
+
+    - name: install tailscale
+      ansible.builtin.dnf:
+        name:
+          - tailscale
+        update_cache: yes
+        state: latest
+      notify:
+        - enable tailscale
+        - restart tailscale
+
   handlers:
     - name: restart Qemu Agent
       ansible.builtin.service:
@@ -205,4 +224,14 @@
     - name: restart dnf automatic
       ansible.builtin.service:
         name: dnf-automatic-install.timer
+        state: restarted
+
+    - name: enable tailscale
+      ansible.builtin.service:
+        name: tailscaled
+        enabled: true
+
+    - name: restart tailscale
+      ansible.builtin.service:
+        name: tailscaled
         state: restarted

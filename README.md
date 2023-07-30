@@ -11,6 +11,7 @@ mkdir -p $HOME/venv
 python -m venv $HOME/venv/ansible
 cd $HOME/venv/ansible && . ./bin/activate
 python -m pip install ansible
+ansible-galaxy collection install -r requirements.yml
 deactivate
 ```
 
