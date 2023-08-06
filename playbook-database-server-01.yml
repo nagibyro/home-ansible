@@ -4,6 +4,10 @@
     tailscale_apt_keyring_path: /usr/share/keyrings/tailscale-archive-keyring.gpg
     tailscale_apt_deb: deb [signed-by={{ tailscale_apt_keyring_path }}] https://pkgs.tailscale.com/stable/ubuntu {{ ansible_distribution_release | lower }} main
     tailscale_apt_signkey: https://pkgs.tailscale.com/stable/ubuntu/{{ ansible_distribution_release | lower }}.noarmor.gpg
+
+    postgres_version: 15
+    ubuntu_distro: focal #this needs to match lsb_release -cs command output
+
   become: yes
   tasks:
     - name: Perform Safe Upgrade
@@ -69,11 +73,25 @@
       notify:
       - Restart Unattended Upgrades
 
+    # For details see https://wiki.postgresql.org/wiki/Apt
+    - name: Add Postgres Apt Key
+      become: true
+      ansible.builtin.apt_key: 
+        url: https://www.postgresql.org/media/keys/ACCC4CF8.asc
+        state: present
+
+    - name: Add Postgres Repo
+      become: true
+      ansible.builtin.apt_repository: 
+        repo: 'deb http://apt.postgresql.org/pub/repos/apt/ {{ ubuntu_distro }}-pgdg main'
+        state: present
+
     - name: Install Postgres
       ansible.builtin.apt:
         name:
-          - postgresql
-          - postgresql-contrib
+          - postgresql-{{ postgres_version }}
+          - libpq-dev
+          - postgresql-contrib-{{ postgres_version }}
         update_cache: yes
         state: latest
       notify:
@@ -97,7 +115,6 @@
     - name: Restart Unattended Upgrades
       service: name=unattended-upgrades state=restarted enabled=yes
 
-
     - name: enable tailscale
       ansible.builtin.service:
         name: tailscaled
@@ -110,10 +127,10 @@
 
     - name: enable postgresql
       ansible.builtin.service:
-        name: postgresql
+        name: postgresql@{{ postgres_version }}-main
         enabled: true
 
     - name: restart postgresql
       ansible.builtin.service:
-        name: postgresql
+        name: postgresql@{{ postgres_version }}-main
         state: restarted
