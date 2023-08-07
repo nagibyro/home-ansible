@@ -98,6 +98,18 @@
         - enable postgresql
         - restart postgresql
 
+    - name: Add postgres hba conf
+      become: true
+      copy: src=files/dbserver/postgres/postgres_config/main/pg_hba.conf dest=/etc/postgresql/15/main/pg_hba.conf owner=postgres group=postgres
+      notify:
+        - restart postgresql
+
+    - name: Add postgres conf
+      become: true
+      copy: src=files/dbserver/postgres/postgres_config/main/postgresql.conf dest=/etc/postgresql/15/main/postgresql.conf owner=postgres group=postgres
+      notify:
+        - restart postgresql
+
   handlers:
     - name: restart Qemu Agent
       ansible.builtin.service:
