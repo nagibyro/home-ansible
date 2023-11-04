@@ -1,0 +1,30 @@
+---
+- name: restart Qemu Agent
+  ansible.builtin.service:
+    name: qemu-guest-agent
+    state: restarted
+
+- name: enable Qemu Agent
+  ansible.builtin.service:
+    name: qemu-guest-agent
+    enabled: true
+
+- name: Start Timesyncd
+  service: name=systemd-timesyncd state=started enabled=yes
+
+- name: Start Unattended Upgrades
+  service: name=unattended-upgrades state=started enabled=yes
+
+- name: Restart Unattended Upgrades
+  service: name=unattended-upgrades state=restarted enabled=yes
+
+- name: enable tailscale
+  ansible.builtin.service:
+    name: tailscaled
+    enabled: true
+
+- name: restart tailscale
+  ansible.builtin.service:
+    name: tailscaled
+    state: restarted
+

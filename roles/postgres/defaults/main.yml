@@ -1,0 +1,3 @@
+---
+postgres_version: "{{ postgres_version | required }}" # 15
+ubuntu_distro: "{{ ubuntu_distro | required }}" #focal #this needs to match lsb_release -cs command output

@@ -1,0 +1,37 @@
+---
+# For details see https://wiki.postgresql.org/wiki/Apt
+- name: Add Postgres Apt Key
+  become: true
+  ansible.builtin.apt_key: 
+    url: https://www.postgresql.org/media/keys/ACCC4CF8.asc
+    state: present
+
+- name: Add Postgres Repo
+  become: true
+  ansible.builtin.apt_repository: 
+    repo: 'deb http://apt.postgresql.org/pub/repos/apt/ {{ ubuntu_distro }}-pgdg main'
+    state: present
+
+- name: Install Postgres
+  ansible.builtin.apt:
+    name:
+      - postgresql-{{ postgres_version }}
+      - libpq-dev
+      - postgresql-contrib-{{ postgres_version }}
+    update_cache: yes
+    state: latest
+  notify:
+    - enable postgresql
+    - restart postgresql
+
+- name: Add postgres hba conf
+  become: true
+  copy: src={{ role_path }}/files/pg_hba.conf dest=/etc/postgresql/{{ postgres_version }}/main/pg_hba.conf owner=postgres group=postgres
+  notify:
+    - restart postgresql
+
+- name: Add postgres conf
+  become: true
+  copy: src={{ role_path }}/files/postgresql.conf dest=/etc/postgresql/{{ postgres_version }}/main/postgresql.conf owner=postgres group=postgres
+  notify:
+    - restart postgresql
