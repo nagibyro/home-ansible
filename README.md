@@ -22,6 +22,7 @@ deactivate
 [devmachine]
 xxx.xxx.xxx.xxx #dev machine ip address
 ```
+3. export secrets env vars from 1password
 3. exectue playbook `ansible-playbook -i inventory playbook-dev-machine-01.yml -u bnagi -K`
 
 ### Caveats

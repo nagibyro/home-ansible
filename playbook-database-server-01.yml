@@ -1,7 +1,9 @@
 ---
 - hosts: dbserver 
   roles:
-    - common
+    - role: common
+      vars:
+        tailscale_authkey: '{{ lookup("ansible.builtin.env", "TAILSCALE_AUTH_KEY") }}'
     - role: postgres
       vars:
         postgres_version: 15
