@@ -1,9 +1,7 @@
----
 tailscale_authkey: "{{ tailscale_auth_key | required }}"
-tailscale_args: "{{ tailscale_args }}" #focal #this needs to match lsb_release -cs command output
+tailscale_args: "{{ tailscale_args }}"
 verbose: false
 tailscale_up_skip: false
-
 # Whether to store hashed authkey in state
 # Setting to false won't re-run 'tailscale up' on authkey change
 auth_key_in_state: false

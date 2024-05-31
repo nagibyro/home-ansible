@@ -1,12 +1,11 @@
----
-- hosts: dbserver 
+- hosts: dbserver
   roles:
     - role: common
       vars:
         tailscale_authkey: '{{ lookup("ansible.builtin.env", "TAILSCALE_AUTH_KEY") }}'
+        tailscale_args: ''
     - role: postgres
       vars:
         postgres_version: 15
         ubuntu_distro: jammy #this needs to match lsb_release -cs command output
-  become: yes
-
+  become: true

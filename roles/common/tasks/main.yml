@@ -1,11 +1,3 @@
-# - name: Load Common Vars
-#   vars:
-#     params:
-#       files:
-#         - main.yml
-#     paths:
-#       - 'vars'
-
 - name: Install Server Basics
   apt: pkg={{ item }} state=present update_cache=true
   with_items:
@@ -13,13 +5,19 @@
     - systemd-timesyncd
     - wget
     - curl
+    - language-pack-en-base
+    - language-pack-en
+    - ufw
   notify:
     - Start Timesyncd
     - Start Unattended Upgrades
-
+    - Start ufw
 - name: Turn on ntp
   command: /usr/bin/timedatectl set-ntp on
-
+- name: Ensure en utf-8 locale
+  community.general.locale_gen:
+    name: en_US.UTF-8
+    state: present
 - name: Install tailscale deps
   apt: pkg={{ item }} state=present update_cache=true
   with_items:
@@ -27,20 +25,17 @@
     - gnupg-agent
     - apt-transport-https
     - python3-apt
-
 - name: Add Tailscale Signing Key
   become: true
   ansible.builtin.get_url:
     dest: "{{ tailscale_apt_keyring_path }}"
     url: "{{ tailscale_apt_signkey }}"
     mode: '0644'
-
 - name: Add Tailscale Deb
   become: true
   ansible.builtin.apt_repository:
     repo: "{{ tailscale_apt_deb }}"
     state: present
-
 - name: Install Tailscale
   become: true
   ansible.builtin.apt:
@@ -50,36 +45,29 @@
   notify:
     - enable tailscale
     - restart tailscale
-
 - name: Install Qemu Guest Package
   ansible.builtin.apt:
     name:
       - qemu-guest-agent
-    update_cache: yes
+    update_cache: true
     state: latest
   when: ansible_system_vendor == 'QEMU'
   notify:
     - enable Qemu Agent
     - restart Qemu Agent
-
 - name: Add Periodic Configuration
   copy: src=files/10periodic dest=/etc/apt/apt.conf.d/10periodic owner=root group=root
-
 - name: Add Unattended Upgrade Configuration
   copy: src=files/50unattended-upgrades dest=/etc/apt/apt.conf.d/50unattended-upgrades owner=root group=root
   notify:
-  - Restart Unattended Upgrades
-
-  
+    - Restart Unattended Upgrades
 ##################################################################################
 # vendoring and modifying https://github.com/artis3n/ansible-role-tailscale
 ##################################################################################
-
 - name: Install | Determine tailscale state folder
   ansible.builtin.set_fact:
     # Following https://specifications.freedesktop.org/basedir-spec/basedir-spec-latest.html
     tailscale_state_folder: "{{ ansible_env.XDG_STATE_HOME | default(ansible_env.HOME + '/.local/state') }}"
-
 - name: Install | Set tailscale state idempotency folder
   ansible.builtin.file:
     path: "{{ item }}"
@@ -90,7 +78,6 @@
   loop:
     - "{{ tailscale_state_folder }}"
     - "{{ tailscale_state_folder }}/tailscale"
-
 - name: Install | Store state idempotency README
   ansible.builtin.copy:
     src: files/tailscale_readme.md
@@ -98,24 +85,20 @@
     owner: "{{ ansible_user_uid }}"
     group: "{{ ansible_user_gid }}"
     mode: '0644'
-
 - name: Install | Fetch Tailscale status
   ansible.builtin.command: tailscale status --json
   changed_when: false
   register: tailscale_status
-
 - name: Install | Parse status JSON
   vars:
     status: "{{ tailscale_status.stdout | from_json }}"
   ansible.builtin.set_fact:
     tailscale_is_online: "{{ status.Self.Online }}"
     tailscale_version: "{{ status.Version }}"
-
 - name: Install | Tailscale version and online status
   ansible.builtin.debug:
     msg: "Ver: {{ tailscale_version }} Online: {{ tailscale_is_online }}"
   when: verbose
-
 - name: Install | Save State
   ansible.builtin.template:
     src: state.j2
@@ -124,7 +107,6 @@
     group: "{{ ansible_user_gid }}"
     mode: '0644'
   register: state_file
-
 - name: Install | Bring Tailscale Up
   become: true
   ansible.builtin.command: "tailscale up {{ tailscale_args | trim }} --authkey={{ tailscale_authkey }}"
@@ -140,30 +122,25 @@
   notify: Confirm Tailscale is Connected
   async: 60
   poll: 5
-
-- name: Install | Report non-sensitive stdout from "tailscale up"  # noqa: no-handler
+- name: Install | Report non-sensitive stdout from "tailscale up" # noqa: no-handler
   ansible.builtin.debug:
     msg: "{{ tailscale_start.stdout | replace(tailscale_authkey, 'REDACTED') | regex_replace('\\t', '') | split('\n') }}"
   when:
     - tailscale_start is failed
     - tailscale_start.stdout | length > 0
   register: nonsensitive_stdout
-
 - name: Install | Pausing to highlight stdout message above
   ansible.builtin.pause:
     seconds: 5
   when: nonsensitive_stdout is not skipped
-
 - name: Install | Clear State Upon Error
   ansible.builtin.file:
     path: "{{ tailscale_state_folder }}/tailscale/state"
     state: absent
   when:
     - tailscale_start is failed
-
-- name: Install | Report redacted failure from "tailscale up"  # noqa: no-handler
+- name: Install | Report redacted failure from "tailscale up" # noqa: no-handler
   ansible.builtin.fail:
     msg: "{{ tailscale_start.stderr | default () | regex_replace('tskey.*\\s', 'REDACTED ') | regex_replace('\\t', '') | split('\n') }}"
   when:
     - tailscale_start is failed
-

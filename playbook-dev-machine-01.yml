@@ -1,5 +1,4 @@
----
-- hosts: devmachine 
+- hosts: devmachine
   become: yes
   tasks:
     - name: Clone dotfiles
@@ -8,7 +7,6 @@
         repo: 'git@github.com:nagibyro/dotfiles.git'
         dest: '~/dotfiles'
         key_file: '~/.ssh/id_ed25519'
-
     - name: Install Dev Packages
       ansible.builtin.dnf:
         name:
@@ -20,18 +18,20 @@
           - fd-find
           - ripgrep
           - nodejs
+          - erlang
+          - elixir
+          - just
           - neovim
+          - inotify-tools
           - libpq-devel
         update_cache: yes
         state: latest
-
     - name: Install Auto Updates
       ansible.builtin.dnf:
         name:
           - dnf-automatic
           - yum-utils
         state: latest
-
     - name: Add Auto updates config
       ansible.builtin.copy:
         src: ./files/dev-machine/dnf-automatic.conf
@@ -39,22 +39,18 @@
       notify:
         - enable dnf automatic
         - restart dnf automatic
-
     - name: Enable starship copr repo
       community.general.copr:
         name: atim/starship
         state: enabled
-
     - name: Install Starship Cli
       ansible.builtin.dnf:
         name: starship
-
     - name: Setup Bash to use Starship cli
       become_user: bnagi
       ansible.builtin.copy:
         src: ./files/dev-machine/add-starship
         dest: ~/.bashrc.d/
-
     - name: Install Qemu Guest Package
       ansible.builtin.dnf:
         name:
@@ -65,7 +61,6 @@
       notify:
         - enable Qemu Agent
         - restart Qemu Agent
-
     - name: Clone pyenv
       become_user: bnagi #will need to figure out how to generalize this one day
       ansible.builtin.git:
@@ -74,20 +69,17 @@
         version: v2.3.12
         depth: 1
         key_file: '~/.ssh/id_ed25519'
-
     - name: Compile pyenv bash extension
       become_user: bnagi
       ansible.builtin.shell:
         cmd: |
           src/configure && make -C src
         chdir: ~/opt/pyenv
-
     - name: Add pyenv to path
       become_user: bnagi
       ansible.builtin.copy:
         src: ./files/dev-machine/add-pyenv-path
         dest: ~/.bashrc.d/
-
     # - name: Install Dotfiles
     #   ansible.builtin.git:
     #     repo: git@github.com:nagibyro/dotfiles.git
@@ -100,7 +92,6 @@
       ansible.builtin.rpm_key:
         state: present
         key: https://downloads.1password.com/linux/keys/1password.asc
-
     - name: Add 1Password repo
       ansible.builtin.yum_repository:
         name: 1password
@@ -109,14 +100,12 @@
         enabled: true
         gpgcheck: true
         gpgkey: https://downloads.1password.com/linux/keys/1password.asc
-
     - name: Install 1Password cli
       ansible.builtin.dnf:
         name:
           - 1password-cli
         update_cache: yes
         state: latest
-
     - name: Add Docker repo
       ansible.builtin.yum_repository:
         name: docker-ce-stable
@@ -125,7 +114,6 @@
         enabled: true
         gpgcheck: true
         gpgkey: https://download.docker.com/linux/fedora/gpg
-
     - name: Install Docker
       ansible.builtin.dnf:
         name:
@@ -140,26 +128,22 @@
       notify:
         - enable Docker
         - restart Docker
-
     - name: Add docker daemon config
       ansible.builtin.copy:
         src: ./files/dev-machine/docker-daemon-config.json
         dest: /etc/docker/daemon.json
       notify:
         - restart Docker
-
     - name: Add bnagi user to docker group
       ansible.builtin.user:
         name: bnagi
         groups: docker
         append: yes
-
     - name: Check if cargo is installed
       become_user: bnagi
       shell: command -v cargo
       register: cargo_exists
       ignore_errors: yes
-
     - name: Download Installer
       become_user: bnagi
       when: cargo_exists is failed
@@ -170,21 +154,18 @@
         force: yes
       tags:
         - rust
-
     - name: install rust/cargo
       become_user: bnagi
       when: cargo_exists is failed
       shell: /tmp/sh.rustup.rs -y
       tags:
         - rust
-
     - name: enable tailscale repo
       become: true
       command:
         cmd: dnf config-manager --add-repo https://pkgs.tailscale.com/stable/fedora/tailscale.repo
       args:
         creates: /etc/yum.repos.d/tailscale.repo
-
     - name: install tailscale
       ansible.builtin.dnf:
         name:
@@ -194,43 +175,35 @@
       notify:
         - enable tailscale
         - restart tailscale
-
   handlers:
     - name: restart Qemu Agent
       ansible.builtin.service:
         name: qemu-guest-agent
         state: restarted
-
     - name: enable Qemu Agent
       ansible.builtin.service:
         name: qemu-guest-agent
         enabled: true
-
     - name: restart Docker
       ansible.builtin.service:
         name: docker
         state: restarted
-
     - name: enable Docker
       ansible.builtin.service:
         name: docker
         enabled: true
-          
     - name: enable dnf automatic
       ansible.builtin.service:
         name: dnf-automatic-install.timer
         enabled: true
-
     - name: restart dnf automatic
       ansible.builtin.service:
         name: dnf-automatic-install.timer
         state: restarted
-
     - name: enable tailscale
       ansible.builtin.service:
         name: tailscaled
         enabled: true
-
     - name: restart tailscale
       ansible.builtin.service:
         name: tailscaled
