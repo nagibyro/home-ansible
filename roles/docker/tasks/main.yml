@@ -1,32 +1,40 @@
 # # For details see https://docs.docker.com/engine/install/ubuntu/#install-using-the-repository 
-# - name: Add Docker Apt Key
-#   become: true
-#   ansible.builtin.apt_key:
-#     url:https://download.docker.com/linux/ubuntu/gpg
-#     state: present
-# - name: Add Docker Repo
-#   become: true
-#   ansible.builtin.apt_repository:
-#     repo: 'deb https://download.docker.com/linux/ubuntu {{ ubuntu_distro }}-pgdg main'
-#     state: present
-# - name: Install Postgres
-#   ansible.builtin.apt:
-#     name:
-#       - postgresql-{{ postgres_version }}
-#       - libpq-dev
-#       - postgresql-contrib-{{ postgres_version }}
-#     update_cache: true
-#     state: latest
-#   notify:
-#     - enable postgresql
-#     - restart postgresql
-# - name: Add postgres hba conf
-#   become: true
-#   copy: src={{ role_path }}/files/pg_hba.conf dest=/etc/postgresql/{{ postgres_version }}/main/pg_hba.conf owner=postgres group=postgres
-#   notify:
-#     - restart postgresql
-# - name: Add postgres conf
-#   become: true
-#   copy: src={{ role_path }}/files/postgresql.conf dest=/etc/postgresql/{{ postgres_version }}/main/postgresql.conf owner=postgres group=postgres
-#   notify:
-#     - restart postgresql
+- name: Add Docker Apt Key
+  become: true
+  ansible.builtin.apt_key:
+    url: https://download.docker.com/linux/ubuntu/gpg
+    state: present
+
+- name: Add Docker Repo
+  become: true
+  ansible.builtin.apt_repository:
+    repo: 'deb https://download.docker.com/linux/ubuntu {{ ubuntu_distro }} stable'
+    state: present
+
+- name: Install Docker
+  ansible.builtin.apt:
+    name:
+      - docker-ce
+      - docker-ce-cli
+      - containerd.io
+      - docker-buildx-plugin
+      - docker-compose-plugin
+    update_cache: true
+    state: latest
+  notify:
+    - enable docker
+    - restart docker
+
+- name: Add docker daemon config
+  ansible.builtin.copy:
+    src: '{{ role_path }}/files/docker-daemon-config.json'
+    dest: /etc/docker/daemon.json
+  notify:
+    - restart Docker
+
+- name: Add bnagi user to docker group
+  ansible.builtin.user:
+    name: bnagi
+    groups: docker
+    append: yes
+

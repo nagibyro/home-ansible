@@ -109,7 +109,7 @@
   register: state_file
 - name: Install | Bring Tailscale Up
   become: true
-  ansible.builtin.command: "tailscale up {{ tailscale_args | trim }} --authkey={{ tailscale_authkey }}"
+  ansible.builtin.command: "tailscale up {{ tailscale_args | trim }} --authkey={{ tailscale_authkey }}?ephemeral=false --advertise-tags=tag:homelab-server"
   # Since the auth key is included in this task's output, we do not want to log output
   no_log: false
   changed_when: true
