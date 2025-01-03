@@ -26,7 +26,6 @@ xxx.xxx.xxx.xxx #dev machine ip address
 3. exectue playbook `ansible-playbook -i inventory playbook-dev-machine-01.yml -u bnagi -K`
 
 ### Caveats
-- You have to connect to the box with the user you'll be logging in as to do work
 - You need ssh keys configured for the user you're logging in as to be setup
   with github. Also you need githubs ssh hostkey added to ssh already. TODO 
   automate all this. (Make sure it's ed25519 key)

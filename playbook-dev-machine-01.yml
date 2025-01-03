@@ -1,8 +1,22 @@
 - hosts: devmachine
-  become: yes
+  become: true
+  vars:
+    dev_user_name: bnagi
+    headless_vm: true
+    with_tailscale: true
   tasks:
+    - name: Create Project Dirs
+      become_user: "{{dev_user_name }}" #will need to figure out how to generalize this one day
+      ansible.builtin.file:
+        path: "/home/{{dev_user_name}}/{{ item }}"
+        state: directory
+        mode: '0755'
+      with_items:
+        - "projects/work"
+        - "projects/personal"
+        - "venv"
     - name: Clone dotfiles
-      become_user: bnagi #will need to figure out how to generalize this one day
+      become_user: "{{dev_user_name }}" #will need to figure out how to generalize this one day
       ansible.builtin.git:
         repo: 'git@github.com:nagibyro/dotfiles.git'
         dest: '~/dotfiles'
@@ -10,8 +24,8 @@
     - name: Install Dev Packages
       ansible.builtin.dnf:
         name:
-          - '@Development tools'
-          - '@Development Libraries'
+          - '@development-tools' # @Development Tools for fedora before 41
+          - '@development-libs' #@Development Libraries for fedora before 41
           - gcc-c++
           - git
           - powerline-fonts
@@ -24,8 +38,15 @@
           - neovim
           - inotify-tools
           - libpq-devel
-        update_cache: yes
+          - stow
+        update_cache: true
         state: latest
+    - name: Stow Dotfiles
+      become_user: "{{dev_user_name }}"
+      ansible.builtin.shell:
+        cmd: |
+          stow .
+        chdir: ~/dotfiles
     - name: Install Auto Updates
       ansible.builtin.dnf:
         name:
@@ -47,47 +68,51 @@
       ansible.builtin.dnf:
         name: starship
     - name: Setup Bash to use Starship cli
-      become_user: bnagi
+      become_user: "{{dev_user_name }}"
       ansible.builtin.copy:
         src: ./files/dev-machine/add-starship
         dest: ~/.bashrc.d/
+    - name: Install Starship Cli
+      ansible.builtin.dnf:
+        name: starship
+    - name: Enable Ghostty copr repo
+      community.general.copr:
+        name: pgdev/ghostty
+        state: enabled
+      when: not headless_vm | bool
+    - name: Install Ghostty
+      ansible.builtin.dnf:
+        name: ghostty
+      when: not headless_vm | bool
     - name: Install Qemu Guest Package
       ansible.builtin.dnf:
         name:
           - qemu-guest-agent
-        update_cache: yes
+        update_cache: true
         state: latest
       when: ansible_system_vendor == 'QEMU'
       notify:
         - enable Qemu Agent
         - restart Qemu Agent
     - name: Clone pyenv
-      become_user: bnagi #will need to figure out how to generalize this one day
+      become_user: "{{dev_user_name }}" #will need to figure out how to generalize this one day
       ansible.builtin.git:
         repo: 'git@github.com:pyenv/pyenv.git'
         dest: '~/opt/pyenv'
-        version: v2.3.12
+        version: v2.5.0
         depth: 1
         key_file: '~/.ssh/id_ed25519'
     - name: Compile pyenv bash extension
-      become_user: bnagi
+      become_user: "{{dev_user_name }}"
       ansible.builtin.shell:
         cmd: |
           src/configure && make -C src
         chdir: ~/opt/pyenv
     - name: Add pyenv to path
-      become_user: bnagi
+      become_user: "{{dev_user_name }}"
       ansible.builtin.copy:
         src: ./files/dev-machine/add-pyenv-path
         dest: ~/.bashrc.d/
-    # - name: Install Dotfiles
-    #   ansible.builtin.git:
-    #     repo: git@github.com:nagibyro/dotfiles.git
-    #     dest: "{{ ansible_env.HOME }}/dotfiles"
-    #     ssh_opts: "-o StrictHostKeyChecking=no"
-    #   environment:
-    #     GIT_TERMINAL_PROMPT: 0
-    #
     - name: Import 1Password yum public key
       ansible.builtin.rpm_key:
         state: present
@@ -104,7 +129,7 @@
       ansible.builtin.dnf:
         name:
           - 1password-cli
-        update_cache: yes
+        update_cache: true
         state: latest
     - name: Add Docker repo
       ansible.builtin.yum_repository:
@@ -122,8 +147,7 @@
           - containerd.io
           - docker-buildx-plugin
           - docker-compose-plugin
-          - docker-compose
-        update_cache: yes
+        update_cache: true
         state: latest
       notify:
         - enable Docker
@@ -134,28 +158,28 @@
         dest: /etc/docker/daemon.json
       notify:
         - restart Docker
-    - name: Add bnagi user to docker group
+    - name: Add dev_user user to docker group
       ansible.builtin.user:
-        name: bnagi
+        name: "{{ dev_user_name }}"
         groups: docker
-        append: yes
+        append: true
     - name: Check if cargo is installed
-      become_user: bnagi
+      become_user: "{{dev_user_name }}"
       shell: command -v cargo
       register: cargo_exists
-      ignore_errors: yes
-    - name: Download Installer
-      become_user: bnagi
+      ignore_errors: true
+    - name: Download Rust Installer
+      become_user: "{{dev_user_name }}"
       when: cargo_exists is failed
       get_url:
         url: https://sh.rustup.rs
         dest: /tmp/sh.rustup.rs
         mode: '0755'
-        force: yes
+        force: true
       tags:
         - rust
     - name: install rust/cargo
-      become_user: bnagi
+      become_user: "{{dev_user_name }}"
       when: cargo_exists is failed
       shell: /tmp/sh.rustup.rs -y
       tags:
@@ -166,15 +190,17 @@
         cmd: dnf config-manager --add-repo https://pkgs.tailscale.com/stable/fedora/tailscale.repo
       args:
         creates: /etc/yum.repos.d/tailscale.repo
+      when: with_tailscale | bool
     - name: install tailscale
       ansible.builtin.dnf:
         name:
           - tailscale
-        update_cache: yes
+        update_cache: true
         state: latest
       notify:
         - enable tailscale
         - restart tailscale
+      when: with_tailscale | bool
   handlers:
     - name: restart Qemu Agent
       ansible.builtin.service:
