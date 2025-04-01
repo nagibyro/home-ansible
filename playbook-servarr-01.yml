@@ -1,0 +1,10 @@
+- hosts: servarr
+  roles:
+    - role: common
+      vars:
+        tailscale_authkey: '{{ lookup("ansible.builtin.env", "TAILSCALE_AUTH_KEY") }}'
+        tailscale_args: "--accept-dns=false"
+    - role: docker
+    - role: servarr
+      # vars:
+  become: yes
